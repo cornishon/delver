@@ -1,5 +1,5 @@
 use bracket_lib::prelude::*;
-use grid::Grid;
+use grid::{Grid, Order::ColumnMajor};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TileType {
@@ -21,6 +21,19 @@ impl BaseMap for Map {
     fn is_opaque(&self, idx: usize) -> bool {
         self.tiles.flatten()[idx] == TileType::Wall
     }
+
+    fn get_available_exits(&self, idx: usize) -> SmallVec<[(usize, f32); 10]> {
+        let p = self.index_to_point2d(idx);
+        [
+            Point::new(p.x - 1, p.y),
+            Point::new(p.x + 1, p.y),
+            Point::new(p.x, p.y + 1),
+            Point::new(p.x, p.y - 1),
+        ]
+        .into_iter()
+        .filter_map(|p| (self.in_bounds(p)).then_some((self.point2d_to_index(p), 1.0)))
+        .collect()
+    }
 }
 
 impl Algorithm2D for Map {
@@ -32,9 +45,9 @@ impl Algorithm2D for Map {
 impl Map {
     pub fn new(width: usize, height: usize) -> Self {
         let mut map = Map {
-            tiles: Grid::init_with_order(width, height, grid::Order::ColumnMajor, TileType::Wall),
-            revealed_tiles: Grid::new_with_order(width, height, grid::Order::ColumnMajor),
-            visible_tiles: Grid::new_with_order(width, height, grid::Order::ColumnMajor),
+            tiles: Grid::init_with_order(width, height, ColumnMajor, TileType::Wall),
+            revealed_tiles: Grid::new_with_order(width, height, ColumnMajor),
+            visible_tiles: Grid::new_with_order(width, height, ColumnMajor),
             rooms: Vec::new(),
             width,
             height,

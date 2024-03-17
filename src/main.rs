@@ -25,12 +25,12 @@ struct Monster;
 #[derive(Debug)]
 struct ViewShed {
     visible_tiles: HashSet<Position>,
-    range: i32,
+    range: u16,
     dirty: bool,
 }
 
 impl ViewShed {
-    fn new(range: i32) -> Self {
+    fn new(range: u16) -> Self {
         Self {
             visible_tiles: Default::default(),
             range,
@@ -62,27 +62,12 @@ impl GameState for State {
             RunState::Paused => {}
             RunState::Running => {
                 self.compute_visibility();
-
                 for (e, pos) in self.world.query_mut::<&Position>().with::<&Monster>() {
                     if self.map.visible_tiles[pos.into()] {
                         println!("{e:?} at {pos:?}");
                     }
                 }
-
-                let mut draw_batch = DrawBatch::new();
-                draw_batch.cls();
-
-                self.map.draw(&mut draw_batch);
-
-                for (_, (pos, render)) in self.world.query_mut::<(&Position, &Renderable)>() {
-                    if self.map.visible_tiles[pos.into()] {
-                        draw_batch.set(pos.into(), render.colors, render.glyph);
-                    }
-                }
-
-                draw_batch.submit(0).expect("Draw Batch");
-                render_draw_buffer(ctx).expect("Render Buffer");
-
+                self.render(ctx);
                 self.run_state = RunState::Paused;
             }
         }
@@ -135,11 +120,14 @@ impl State {
             .filter(|(_, (fov, _, _))| fov.dirty)
         {
             fov.dirty = false;
-            fov.visible_tiles = field_of_view_set(pos.into(), fov.range, &self.map)
+            fov.visible_tiles = field_of_view_set(pos.into(), fov.range.into(), &self.map)
                 .into_iter()
                 .filter_map(|p| Position::try_from(&p).ok())
                 .collect();
-            fov.visible_tiles.retain(|p| self.map.in_bounds(p.into()));
+            fov.visible_tiles.retain(|p| {
+                self.map.in_bounds(p.into())
+                    && DistanceAlg::Manhattan.distance2d(pos.into(), p.into()) <= fov.range.into()
+            });
             if player.is_some() {
                 self.map.visible_tiles.fill(false);
                 for &p in &fov.visible_tiles {
@@ -149,13 +137,29 @@ impl State {
             }
         }
     }
+
+    fn render(&mut self, ctx: &mut BTerm) {
+        let mut draw_batch = DrawBatch::new();
+        draw_batch.cls();
+
+        self.map.draw(&mut draw_batch);
+
+        for (_, (pos, render)) in self.world.query_mut::<(&Position, &Renderable)>() {
+            if self.map.visible_tiles[pos.into()] {
+                draw_batch.set(pos.into(), render.colors, render.glyph);
+            }
+        }
+
+        draw_batch.submit(0).expect("Draw Batch");
+        render_draw_buffer(ctx).expect("Render Buffer");
+    }
 }
 
 const CONSOLE_WIDTH: i32 = 60;
 const CONSOLE_HEIGHT: i32 = 40;
 
 fn main() -> BError {
-    let bterm = BTermBuilder::simple(CONSOLE_WIDTH, CONSOLE_HEIGHT)?
+    let mut bterm = BTermBuilder::simple(CONSOLE_WIDTH, CONSOLE_HEIGHT)?
         .with_title("Roguelike")
         .with_tile_dimensions(16, 16)
         .build()?;
@@ -196,6 +200,9 @@ fn main() -> BError {
             ViewShed::new(6),
         ));
     }
+
+    game_state.compute_visibility();
+    game_state.render(&mut bterm);
 
     main_loop(bterm, game_state)
 }
