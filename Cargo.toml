@@ -8,4 +8,5 @@ edition = "2021"
 [dependencies]
 bracket-lib = "0.8.7"
 bracket-terminal = { version = "0.8.7", features = ["low_cpu"] }
+grid = "0.13.0"
 hecs = "0.10.4"

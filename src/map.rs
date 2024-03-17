@@ -1,6 +1,5 @@
 use bracket_lib::prelude::*;
-
-use crate::grid::Grid;
+use grid::Grid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TileType {
@@ -20,7 +19,7 @@ pub struct Map {
 
 impl BaseMap for Map {
     fn is_opaque(&self, idx: usize) -> bool {
-        self.tiles.storage[idx] == TileType::Wall
+        self.tiles.flatten()[idx] == TileType::Wall
     }
 }
 
@@ -33,9 +32,9 @@ impl Algorithm2D for Map {
 impl Map {
     pub fn new(width: usize, height: usize) -> Self {
         let mut map = Map {
-            tiles: Grid::new(TileType::Wall, width, height),
-            revealed_tiles: Grid::default(width, height),
-            visible_tiles: Grid::default(width, height),
+            tiles: Grid::init_with_order(width, height, grid::Order::ColumnMajor, TileType::Wall),
+            revealed_tiles: Grid::new_with_order(width, height, grid::Order::ColumnMajor),
+            visible_tiles: Grid::new_with_order(width, height, grid::Order::ColumnMajor),
             rooms: Vec::new(),
             width,
             height,
@@ -76,12 +75,10 @@ impl Map {
     }
 
     pub fn draw(&self, draw_batch: &mut DrawBatch) {
-        for (idx, tile) in self
+        for (idx @ (x, y), tile) in self
             .tiles
-            .storage
-            .iter()
-            .enumerate()
-            .filter(|&(idx, _)| self.revealed_tiles.storage[idx])
+            .indexed_iter()
+            .filter(|&(idx, _)| self.revealed_tiles[idx])
         {
             let (fg, glyph) = match tile {
                 TileType::Wall => (RGBA::from_f32(0.0, 8.0, 0.0, 1.0), '#'),
@@ -89,9 +86,9 @@ impl Map {
             };
 
             draw_batch.set(
-                self.tiles.to_pos(idx),
+                Point::new(x, y),
                 ColorPair {
-                    fg: if self.visible_tiles.storage[idx] { fg } else { RGBA::named(GREY40) },
+                    fg: if self.visible_tiles[idx] { fg } else { RGBA::named(GREY40) },
                     bg: RGBA::named(BLACK),
                 },
                 glyph,
@@ -99,9 +96,9 @@ impl Map {
         }
     }
 
-    pub fn is_passable(&self, x: i32, y: i32) -> bool {
-        if let Some(idx) = self.tiles.try_to_idx(x, y) {
-            !self.is_opaque(idx)
+    pub fn is_passable(&self, p: Point) -> bool {
+        if self.tiles.get(p.x, p.y).is_some() {
+            !self.is_opaque(self.point2d_to_index(p))
         } else {
             false
         }
@@ -110,20 +107,26 @@ impl Map {
     fn carve_room(&mut self, room: Rect) {
         for y in room.y1..=room.y2 {
             for x in room.x1..=room.x2 {
-                self.tiles.set(x, y, TileType::Floor)
+                if let Some(v) = self.tiles.get_mut(x, y) {
+                    *v = TileType::Floor
+                }
             }
         }
     }
 
     fn carve_horizontal_tunnel(&mut self, x1: i32, x2: i32, y: i32) {
         for x in x1.min(x2)..=x1.max(x2) {
-            self.tiles.set(x, y, TileType::Floor)
+            if let Some(v) = self.tiles.get_mut(x, y) {
+                *v = TileType::Floor
+            }
         }
     }
 
     fn carve_vertical_tunnel(&mut self, x: i32, y1: i32, y2: i32) {
         for y in y1.min(y2)..=y1.max(y2) {
-            self.tiles.set(x, y, TileType::Floor)
+            if let Some(v) = self.tiles.get_mut(x, y) {
+                *v = TileType::Floor
+            }
         }
     }
 }
