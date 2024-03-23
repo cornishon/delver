@@ -98,7 +98,7 @@ impl GameState for State {
                     for (idx, tile) in self.map.tiles.iter().enumerate() {
                         let d = self.dm.map[idx];
                         if *tile == TileType::Floor && d > 0.5 && d < 10.0 {
-                            let mp = self.map.index_to_point2d(idx);
+                            let mp = self.map.to_pos(idx);
                             ctx.print(mp.x, mp.y, d);
                         }
                     }
@@ -127,7 +127,7 @@ impl GameState for State {
 }
 
 impl State {
-    fn new(map: Map) -> Self {
+    pub fn new(map: Map) -> Self {
         Self {
             dm: DijkstraMap::new_empty(map.width, map.height, 100.0),
             map,
@@ -164,7 +164,7 @@ impl State {
                 }
             }
 
-            if self.map.is_passable(new_pos.into()) {
+            if self.map.is_passable(new_pos) {
                 self.map.blocked[pos.into()] = false;
                 *pos = new_pos;
                 fov.dirty = true;
@@ -238,7 +238,7 @@ impl State {
 
     fn compute_dijkstra_map(&mut self) {
         let player_pos = *self.world.query_one_mut::<&Position>(self.player).unwrap();
-        let player_pos = self.map.point2d_to_index(player_pos.into());
+        let player_pos = self.map.to_idx(player_pos);
         self.dm = DijkstraMap::new(
             self.map.width,
             self.map.height,

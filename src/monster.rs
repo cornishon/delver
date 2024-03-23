@@ -44,16 +44,15 @@ pub fn apply_ai(gs: &mut State, _ctx: &mut BTerm) {
     type Q<'w> = (&'w mut Position, &'w Name, &'w mut ViewShed);
     for (e, (pos, _, fov)) in gs.world.query_mut::<Q>().with::<&Monster>() {
         if fov.visible_tiles.contains(&player_pos) {
-            let Some(exit) =
-                DijkstraMap::find_lowest_exit(&gs.dm, gs.map.point2d_to_index(pos.into()), &gs.map)
+            let Some(exit) = DijkstraMap::find_lowest_exit(&gs.dm, gs.map.to_idx(*pos), &gs.map)
             else {
                 continue;
             };
 
-            if exit == gs.map.point2d_to_index(player_pos.into()) {
+            if exit == gs.map.to_idx(player_pos) {
                 attackers.push(e);
             } else {
-                *pos = gs.map.index_to_position(exit);
+                *pos = gs.map.to_pos(exit);
                 fov.dirty = true;
             }
         }

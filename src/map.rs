@@ -116,7 +116,8 @@ impl Map {
         }
     }
 
-    pub fn is_passable(&self, p: Point) -> bool {
+    pub fn is_passable(&self, p: impl Into<Point>) -> bool {
+        let p = p.into();
         if self.in_bounds(p) {
             let idx2d = Position::from_point(p).into();
             let idx = self.point2d_to_index(p);
@@ -130,7 +131,13 @@ impl Map {
         Grid::new_with_order(self.width, self.height, Order::ColumnMajor)
     }
 
-    pub fn index_to_position(&self, idx: usize) -> Position {
+    #[inline]
+    pub fn to_idx(&self, p: impl Into<Point>) -> usize {
+        self.point2d_to_index(p.into())
+    }
+
+    #[inline]
+    pub fn to_pos(&self, idx: usize) -> Position {
         Position::from_point(self.index_to_point2d(idx))
     }
 
