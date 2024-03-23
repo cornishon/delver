@@ -1,5 +1,4 @@
 use bracket_lib::prelude::*;
-use bracket_terminal::console;
 use hecs::World;
 
 use crate::{
@@ -62,7 +61,8 @@ pub fn apply_ai(gs: &mut State, _ctx: &mut BTerm) {
 
     for a in attackers {
         if let Err(err) = gs.world.insert_one(a, WantsToMelee { target: gs.player }) {
-            console::log(format!("Error inserting Melee component: {err}"));
+            gs.msg_log
+                .push(format!("Error inserting Melee component: {err}"));
         }
     }
 }

@@ -74,9 +74,11 @@ pub fn melee_combat(gs: &mut State) {
                 damage += 1;
             }
             if damage == 0 {
-                console::log(format!("{name} is unable to damage {target_name}"));
+                gs.msg_log
+                    .push(format!("{name} is unable to damage {target_name}"));
             } else {
-                console::log(format!("{name} hits {target_name} for {}", damage));
+                gs.msg_log
+                    .push(format!("{name} hits {target_name} for {}", damage));
                 to_damage.push((wants_melee.target, damage));
             }
         }
@@ -108,8 +110,13 @@ pub fn apply_damage(gs: &mut State) {
 
 pub fn delete_the_dead(gs: &mut State) {
     let mut dead = Vec::new();
-    for (e, stats) in gs.world.query_mut::<&CombatStats>() {
+    for (e, (stats, name)) in gs.world.query_mut::<(&CombatStats, &Name)>() {
         if stats.hp <= 0 {
+            if e == gs.player {
+                gs.msg_log.push(format!("{name} died. Game over"));
+            } else {
+                gs.msg_log.push(format!("{name} is dead."));
+            }
             dead.push(e);
         }
     }

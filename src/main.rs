@@ -12,6 +12,7 @@ mod combat;
 mod map;
 mod monster;
 mod position;
+mod ui;
 
 #[derive(Debug)]
 struct Renderable {
@@ -64,6 +65,7 @@ impl ViewShed {
 #[derive(Debug, Default, Clone, Copy)]
 pub enum Phase {
     #[default]
+    Startup,
     AwaitingInput,
     PlayerTurn,
     MonsterTurn,
@@ -75,11 +77,20 @@ struct State {
     dm: DijkstraMap,
     phase: Phase,
     player: hecs::Entity,
+    msg_log: Vec<String>,
 }
 
 impl GameState for State {
     fn tick(&mut self, ctx: &mut BTerm) {
         match self.phase {
+            Phase::Startup => {
+                self.compute_visibility();
+                self.update_map();
+                self.render(ctx);
+                self.msg_log.push("Welcome to the game.".into());
+                ui::draw_ui(self, ctx);
+                self.phase = Phase::AwaitingInput;
+            }
             Phase::AwaitingInput => {
                 if self.player_input(ctx) {
                     self.phase = Phase::PlayerTurn;
@@ -109,6 +120,7 @@ impl GameState for State {
                 self.phase = Phase::AwaitingInput;
 
                 self.render(ctx);
+                ui::draw_ui(self, ctx);
             }
         }
     }
@@ -122,6 +134,7 @@ impl State {
             world: Default::default(),
             phase: Default::default(),
             player: hecs::Entity::DANGLING,
+            msg_log: Default::default(),
         }
     }
 
@@ -169,11 +182,11 @@ impl State {
     }
 
     fn compute_visibility(&mut self) {
-        for (_, (fov, pos, player)) in self
+        for (e, (fov, pos)) in self
             .world
-            .query_mut::<(&mut ViewShed, &Position, Option<&Player>)>()
+            .query_mut::<(&mut ViewShed, &Position)>()
             .into_iter()
-            .filter(|(_, (fov, _, _))| fov.dirty)
+            .filter(|(_, (fov, _))| fov.dirty)
         {
             fov.dirty = false;
             fov.visible_tiles = field_of_view_set(pos.into(), fov.range.into(), &self.map)
@@ -183,7 +196,7 @@ impl State {
                 .filter_map(|p| Position::try_from(&p).ok())
                 .collect();
 
-            if player.is_some() {
+            if e == self.player {
                 self.map.visible.fill(false);
                 for &p in &fov.visible_tiles {
                     self.map.revealed[p.into()] = true;
@@ -195,6 +208,7 @@ impl State {
 
     fn render(&mut self, ctx: &mut BTerm) {
         let mut draw_batch = DrawBatch::new();
+        draw_batch.target(0);
         draw_batch.cls();
 
         self.map.draw(&mut draw_batch);
@@ -239,15 +253,19 @@ impl State {
 }
 
 const CONSOLE_WIDTH: i32 = 60;
-const CONSOLE_HEIGHT: i32 = 40;
+const CONSOLE_HEIGHT: i32 = 42;
+const UI_HEIGHT: i32 = 10;
 
 fn main() -> BError {
-    let mut bterm = BTermBuilder::simple(CONSOLE_WIDTH, CONSOLE_HEIGHT)?
+    let bterm = BTermBuilder::simple(CONSOLE_WIDTH, CONSOLE_HEIGHT)?
         .with_title("Roguelike")
         .with_tile_dimensions(16, 16)
         .build()?;
 
-    let map = Map::new(CONSOLE_WIDTH as usize, CONSOLE_HEIGHT as usize - 7);
+    let map = Map::new(
+        CONSOLE_WIDTH as usize,
+        (CONSOLE_HEIGHT - UI_HEIGHT) as usize,
+    );
     let mut gs = State::new(map);
     let mut rng = RandomNumberGenerator::new();
 
@@ -277,10 +295,6 @@ fn main() -> BError {
         let y = rng.range(room.y1 + 1, room.y2);
         monster::spawn(&mut gs.world, x, y);
     }
-
-    gs.compute_visibility();
-    gs.update_map();
-    gs.render(&mut bterm);
 
     main_loop(bterm, gs)
 }
