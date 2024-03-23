@@ -247,7 +247,7 @@ fn main() -> BError {
         .with_tile_dimensions(16, 16)
         .build()?;
 
-    let map = Map::new(CONSOLE_WIDTH as usize, CONSOLE_HEIGHT as usize);
+    let map = Map::new(CONSOLE_WIDTH as usize, CONSOLE_HEIGHT as usize - 7);
     let mut gs = State::new(map);
     let mut rng = RandomNumberGenerator::new();
 
