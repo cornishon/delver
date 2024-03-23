@@ -1,8 +1,12 @@
 use bracket_lib::prelude::*;
-use grid::{Grid, Order::ColumnMajor};
+use grid::{Grid, Order};
+use hecs::Entity;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+use crate::position::Position;
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum TileType {
+    #[default]
     Wall,
     Floor,
 }
@@ -10,48 +14,47 @@ pub enum TileType {
 #[derive(Debug)]
 pub struct Map {
     pub tiles: Grid<TileType>,
-    pub revealed_tiles: Grid<bool>,
-    pub visible_tiles: Grid<bool>,
+    pub revealed: Grid<bool>,
+    pub visible: Grid<bool>,
+    pub blocked: Grid<bool>,
+    pub entities: Grid<Vec<Entity>>,
     pub rooms: Vec<Rect>,
     pub width: usize,
     pub height: usize,
 }
 
-impl BaseMap for Map {
-    fn is_opaque(&self, idx: usize) -> bool {
-        self.tiles.flatten()[idx] == TileType::Wall
-    }
-
-    fn get_available_exits(&self, idx: usize) -> SmallVec<[(usize, f32); 10]> {
-        let p = self.index_to_point2d(idx);
-        [
-            Point::new(p.x - 1, p.y),
-            Point::new(p.x + 1, p.y),
-            Point::new(p.x, p.y + 1),
-            Point::new(p.x, p.y - 1),
-        ]
-        .into_iter()
-        .filter_map(|p| (self.in_bounds(p)).then_some((self.point2d_to_index(p), 1.0)))
-        .collect()
-    }
-}
-
-impl Algorithm2D for Map {
-    fn dimensions(&self) -> Point {
-        Point::new(self.width, self.height)
+impl Default for Map {
+    fn default() -> Self {
+        Self {
+            tiles: Grid::new(0, 0),
+            revealed: Grid::new(0, 0),
+            visible: Grid::new(0, 0),
+            blocked: Grid::new(0, 0),
+            rooms: Default::default(),
+            entities: Grid::new(0, 0),
+            width: 0,
+            height: 0,
+        }
     }
 }
 
 impl Map {
-    pub fn new(width: usize, height: usize) -> Self {
+    fn empty(width: usize, height: usize) -> Self {
         let mut map = Map {
-            tiles: Grid::init_with_order(width, height, ColumnMajor, TileType::Wall),
-            revealed_tiles: Grid::new_with_order(width, height, ColumnMajor),
-            visible_tiles: Grid::new_with_order(width, height, ColumnMajor),
-            rooms: Vec::new(),
             width,
             height,
+            ..Default::default()
         };
+        map.tiles = map.new_grid();
+        map.revealed = map.new_grid();
+        map.visible = map.new_grid();
+        map.blocked = map.new_grid();
+        map.entities = map.new_grid();
+        map
+    }
+
+    pub fn new(width: usize, height: usize) -> Self {
+        let mut map = Map::empty(width, height);
 
         const MAX_ROOMS: i32 = 30;
         const MIN_SIZE: i32 = 6;
@@ -84,6 +87,10 @@ impl Map {
             }
         }
 
+        for (idx, blocked) in map.blocked.indexed_iter_mut() {
+            *blocked = map.tiles[idx] == TileType::Wall;
+        }
+
         map
     }
 
@@ -91,7 +98,7 @@ impl Map {
         for (idx @ (x, y), tile) in self
             .tiles
             .indexed_iter()
-            .filter(|&(idx, _)| self.revealed_tiles[idx])
+            .filter(|&(idx, _)| self.revealed[idx])
         {
             let (fg, glyph) = match tile {
                 TileType::Wall => (RGBA::from_f32(0.0, 8.0, 0.0, 1.0), '#'),
@@ -101,8 +108,8 @@ impl Map {
             draw_batch.set(
                 Point::new(x, y),
                 ColorPair {
-                    fg: if self.visible_tiles[idx] { fg } else { RGBA::named(GREY40) },
-                    bg: RGBA::named(BLACK),
+                    fg: if self.visible[idx] { fg } else { RGBA::named(GREY40) },
+                    bg: if self.blocked[idx] { RGBA::named(ORANGE) } else { RGBA::named(BLACK) },
                 },
                 glyph,
             );
@@ -110,18 +117,34 @@ impl Map {
     }
 
     pub fn is_passable(&self, p: Point) -> bool {
-        if self.tiles.get(p.x, p.y).is_some() {
-            !self.is_opaque(self.point2d_to_index(p))
+        if self.in_bounds(p) {
+            let idx2d = Position::from_point(p).into();
+            let idx = self.point2d_to_index(p);
+            !self.is_opaque(idx) && !self.blocked[idx2d]
         } else {
             false
+        }
+    }
+
+    pub fn new_grid<T: Default>(&self) -> Grid<T> {
+        Grid::new_with_order(self.width, self.height, Order::ColumnMajor)
+    }
+
+    pub fn index_to_position(&self, idx: usize) -> Position {
+        Position::from_point(self.index_to_point2d(idx))
+    }
+
+    pub fn clear_entities(&mut self) {
+        for content in self.entities.iter_mut() {
+            content.clear();
         }
     }
 
     fn carve_room(&mut self, room: Rect) {
         for y in room.y1..=room.y2 {
             for x in room.x1..=room.x2 {
-                if let Some(v) = self.tiles.get_mut(x, y) {
-                    *v = TileType::Floor
+                if let Some(tile) = self.tiles.get_mut(x, y) {
+                    *tile = TileType::Floor
                 }
             }
         }
@@ -129,17 +152,49 @@ impl Map {
 
     fn carve_horizontal_tunnel(&mut self, x1: i32, x2: i32, y: i32) {
         for x in x1.min(x2)..=x1.max(x2) {
-            if let Some(v) = self.tiles.get_mut(x, y) {
-                *v = TileType::Floor
+            if let Some(tile) = self.tiles.get_mut(x, y) {
+                *tile = TileType::Floor
             }
         }
     }
 
     fn carve_vertical_tunnel(&mut self, x: i32, y1: i32, y2: i32) {
         for y in y1.min(y2)..=y1.max(y2) {
-            if let Some(v) = self.tiles.get_mut(x, y) {
-                *v = TileType::Floor
+            if let Some(tile) = self.tiles.get_mut(x, y) {
+                *tile = TileType::Floor
             }
         }
+    }
+}
+
+impl BaseMap for Map {
+    fn is_opaque(&self, idx: usize) -> bool {
+        self.tiles.flatten()[idx] == TileType::Wall
+    }
+
+    fn get_pathing_distance(&self, idx1: usize, idx2: usize) -> f32 {
+        let p1 = self.index_to_point2d(idx1);
+        let p2 = self.index_to_point2d(idx2);
+        DistanceAlg::Manhattan.distance2d(p1, p2)
+    }
+
+    fn get_available_exits(&self, idx: usize) -> SmallVec<[(usize, f32); 10]> {
+        let pt = self.index_to_point2d(idx);
+        [
+            Point::new(pt.x - 1, pt.y),
+            Point::new(pt.x + 1, pt.y),
+            Point::new(pt.x, pt.y + 1),
+            Point::new(pt.x, pt.y - 1),
+        ]
+        .into_iter()
+        .filter(|&p| self.is_passable(p))
+        .map(|p| (self.point2d_to_index(p), 1.0))
+        .collect()
+    }
+}
+
+impl Algorithm2D for Map {
+    fn dimensions(&self) -> Point {
+        Point::new(self.width, self.height)
     }
 }

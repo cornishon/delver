@@ -20,6 +20,10 @@ impl Position {
                 .unwrap_or_else(|_| panic!("{y} is out of range")),
         }
     }
+
+    pub fn from_point(p: Point) -> Self {
+        Self::new(p.x, p.y)
+    }
 }
 
 impl ops::Add<Point> for Position {
@@ -33,6 +37,11 @@ impl From<&Position> for (usize, usize) {
         (x.into(), y.into())
     }
 }
+impl From<&mut Position> for (usize, usize) {
+    fn from(&mut Position { x, y }: &mut Position) -> Self {
+        (x.into(), y.into())
+    }
+}
 impl From<Position> for (usize, usize) {
     fn from(Position { x, y }: Position) -> Self {
         (x.into(), y.into())
@@ -40,6 +49,11 @@ impl From<Position> for (usize, usize) {
 }
 impl From<&Position> for Point {
     fn from(&Position { x, y }: &Position) -> Self {
+        Point::new(x, y)
+    }
+}
+impl From<&mut Position> for Point {
+    fn from(&mut Position { x, y }: &mut Position) -> Self {
         Point::new(x, y)
     }
 }
