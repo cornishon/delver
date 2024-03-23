@@ -109,7 +109,7 @@ impl Map {
                 Point::new(x, y),
                 ColorPair {
                     fg: if self.visible[idx] { fg } else { RGBA::named(GREY40) },
-                    bg: if self.blocked[idx] { RGBA::named(ORANGE) } else { RGBA::named(BLACK) },
+                    bg: RGBA::named(BLACK),
                 },
                 glyph,
             );

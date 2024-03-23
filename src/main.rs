@@ -64,8 +64,9 @@ impl ViewShed {
 #[derive(Debug, Default, Clone, Copy)]
 pub enum Phase {
     #[default]
-    Paused,
-    Running,
+    AwaitingInput,
+    PlayerTurn,
+    MonsterTurn,
 }
 
 struct State {
@@ -79,37 +80,35 @@ struct State {
 impl GameState for State {
     fn tick(&mut self, ctx: &mut BTerm) {
         match self.phase {
-            Phase::Paused => match self.player_input(ctx) {
-                PlayerMove::Move => {
-                    self.phase = Phase::Running;
-                }
-                PlayerMove::Attack(target) => {
-                    assert!(self
-                        .world
-                        .insert_one(self.player, WantsToMelee { target })
-                        .is_ok());
-                    self.phase = Phase::Running;
-                }
-                PlayerMove::None => {
-                    if ctx.key == Some(VirtualKeyCode::M) {
-                        for (idx, tile) in self.map.tiles.iter().enumerate() {
-                            let d = self.dm.map[idx];
-                            if *tile == TileType::Floor && d > 0.5 && d < 10.0 {
-                                let mp = self.map.index_to_point2d(idx);
-                                ctx.print(mp.x, mp.y, d);
-                            }
+            Phase::AwaitingInput => {
+                if self.player_input(ctx) {
+                    self.phase = Phase::PlayerTurn;
+                } else if ctx.key == Some(VirtualKeyCode::M) {
+                    for (idx, tile) in self.map.tiles.iter().enumerate() {
+                        let d = self.dm.map[idx];
+                        if *tile == TileType::Floor && d > 0.5 && d < 10.0 {
+                            let mp = self.map.index_to_point2d(idx);
+                            ctx.print(mp.x, mp.y, d);
                         }
                     }
                 }
-            },
-            Phase::Running => {
+            }
+            Phase::PlayerTurn => {
+                self.compute_visibility();
+                self.compute_dijkstra_map();
+                combat::run(self);
+                self.update_map();
+                self.phase = Phase::MonsterTurn;
+            }
+            Phase::MonsterTurn => {
                 self.compute_visibility();
                 self.compute_dijkstra_map();
                 monster::apply_ai(self, ctx);
                 combat::run(self);
                 self.update_map();
+                self.phase = Phase::AwaitingInput;
+
                 self.render(ctx);
-                self.phase = Phase::Paused;
             }
         }
     }
@@ -126,26 +125,29 @@ impl State {
         }
     }
 
-    fn player_input(&mut self, ctx: &BTerm) -> PlayerMove {
+    fn player_input(&mut self, ctx: &BTerm) -> bool {
         use VirtualKeyCode as Key;
         match ctx.key {
             Some(Key::H | Key::A | Key::Left) => self.try_move_player(-1, 0),
             Some(Key::J | Key::S | Key::Down) => self.try_move_player(0, 1),
             Some(Key::K | Key::W | Key::Up) => self.try_move_player(0, -1),
             Some(Key::L | Key::D | Key::Right) => self.try_move_player(1, 0),
-            _ => PlayerMove::None,
+            _ => false,
         }
     }
 
-    fn try_move_player(&mut self, dx: i8, dy: i8) -> PlayerMove {
-        let mut moved = PlayerMove::None;
+    fn try_move_player(&mut self, dx: i8, dy: i8) -> bool {
+        let mut moved = false;
+        let mut target = None;
+
         type Q<'w> = (&'w mut Position, &'w mut ViewShed);
         for (_, (pos, fov)) in self.world.query::<Q>().with::<&Player>().iter() {
             let new_pos = *pos + Point::new(dx, dy);
 
             for e in &self.map.entities[new_pos.into()] {
                 if let Ok(true) = self.world.satisfies::<&CombatStats>(*e) {
-                    return PlayerMove::Attack(*e);
+                    target = Some(*e);
+                    moved = true;
                 }
             }
 
@@ -153,8 +155,14 @@ impl State {
                 self.map.blocked[pos.into()] = false;
                 *pos = new_pos;
                 fov.dirty = true;
-                moved = PlayerMove::Move;
+                moved = true;
             }
+        }
+
+        if let Some(target) = target {
+            self.world
+                .insert_one(self.player, WantsToMelee { target })
+                .expect("Player exists");
         }
 
         moved
