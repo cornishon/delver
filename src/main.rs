@@ -62,7 +62,7 @@ impl ViewShed {
 }
 
 #[derive(Debug, Default, Clone, Copy)]
-pub enum RunState {
+pub enum Phase {
     #[default]
     Paused,
     Running,
@@ -72,23 +72,23 @@ struct State {
     world: World,
     map: Map,
     dm: DijkstraMap,
-    run_state: RunState,
+    phase: Phase,
     player: hecs::Entity,
 }
 
 impl GameState for State {
     fn tick(&mut self, ctx: &mut BTerm) {
-        match self.run_state {
-            RunState::Paused => match self.player_input(ctx) {
+        match self.phase {
+            Phase::Paused => match self.player_input(ctx) {
                 PlayerMove::Move => {
-                    self.run_state = RunState::Running;
+                    self.phase = Phase::Running;
                 }
                 PlayerMove::Attack(target) => {
                     assert!(self
                         .world
                         .insert_one(self.player, WantsToMelee { target })
                         .is_ok());
-                    self.run_state = RunState::Running;
+                    self.phase = Phase::Running;
                 }
                 PlayerMove::None => {
                     if ctx.key == Some(VirtualKeyCode::M) {
@@ -102,14 +102,14 @@ impl GameState for State {
                     }
                 }
             },
-            RunState::Running => {
+            Phase::Running => {
                 self.compute_visibility();
                 self.compute_dijkstra_map();
                 monster::apply_ai(self, ctx);
                 combat::run(self);
                 self.update_map();
                 self.render(ctx);
-                self.run_state = RunState::Paused;
+                self.phase = Phase::Paused;
             }
         }
     }
@@ -121,7 +121,7 @@ impl State {
             dm: DijkstraMap::new_empty(map.width, map.height, 100.0),
             map,
             world: Default::default(),
-            run_state: Default::default(),
+            phase: Default::default(),
             player: hecs::Entity::DANGLING,
         }
     }
