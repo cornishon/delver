@@ -53,14 +53,13 @@ impl Map {
         map
     }
 
-    pub fn new(width: usize, height: usize) -> Self {
+    pub fn new(width: usize, height: usize, rng: &mut RandomNumberGenerator) -> Self {
         let mut map = Map::empty(width, height);
 
         const MAX_ROOMS: i32 = 30;
         const MIN_SIZE: i32 = 6;
         const MAX_SIZE: i32 = 10;
 
-        let mut rng = RandomNumberGenerator::new();
         for _ in 0..MAX_ROOMS {
             let w = rng.range(MIN_SIZE, MAX_SIZE);
             let h = rng.range(MIN_SIZE, MAX_SIZE);

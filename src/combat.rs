@@ -1,4 +1,3 @@
-use bracket_lib::random::RandomNumberGenerator;
 use bracket_terminal::console;
 use hecs::{Entity, World};
 
@@ -46,7 +45,6 @@ impl SufferDamage {
 }
 
 pub fn melee_combat(gs: &mut State) {
-    let mut rng = RandomNumberGenerator::new();
     let mut to_damage = Vec::new();
     let mut attackers = Vec::new();
     for (e, (wants_melee, name, stats)) in gs
@@ -70,7 +68,7 @@ pub fn melee_combat(gs: &mut State) {
             }
             let damage = stats.power as f32 * (1.0 - target_stats.defense.0);
             let (mut damage, fractional) = (damage as i32, damage.fract());
-            if rng.range(0.0, 1.0) > fractional {
+            if gs.rng.range(0.0, 1.0) > fractional {
                 damage += 1;
             }
             if damage == 0 {

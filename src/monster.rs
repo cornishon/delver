@@ -9,8 +9,7 @@ use crate::{
 #[derive(Debug)]
 pub struct Monster;
 
-pub fn spawn(world: &mut World, x: i32, y: i32) {
-    let mut rng = RandomNumberGenerator::new();
+pub fn spawn(world: &mut World, x: i32, y: i32, rng: &mut RandomNumberGenerator) {
     let (glyph, name) = match rng.roll_dice(1, 3) {
         1 => (to_cp437('o'), Name::new("Orc")),
         _ => (to_cp437('g'), Name::new("Goblin")),

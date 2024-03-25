@@ -13,6 +13,10 @@ mod monster;
 mod position;
 mod ui;
 
+const CONSOLE_WIDTH: i32 = 60;
+const CONSOLE_HEIGHT: i32 = 42;
+const UI_HEIGHT: i32 = 10;
+
 #[derive(Debug)]
 struct Renderable {
     glyph: FontCharType,
@@ -74,6 +78,7 @@ pub enum Phase {
 struct State {
     world: World,
     map: Map,
+    rng: RandomNumberGenerator,
     dm: DijkstraMap,
     phase: Phase,
     player: Entity,
@@ -132,10 +137,17 @@ impl GameState for State {
 }
 
 impl State {
-    pub fn new(map: Map) -> Self {
+    pub fn new(mut rng: RandomNumberGenerator) -> Self {
+        let map = Map::new(
+            CONSOLE_WIDTH as usize,
+            (CONSOLE_HEIGHT - UI_HEIGHT) as usize,
+            &mut rng,
+        );
+
         Self {
             dm: DijkstraMap::new_empty(map.width, map.height, 100.0),
             map,
+            rng,
             world: Default::default(),
             phase: Default::default(),
             player: Entity::DANGLING,
@@ -257,22 +269,29 @@ impl State {
     }
 }
 
-const CONSOLE_WIDTH: i32 = 60;
-const CONSOLE_HEIGHT: i32 = 42;
-const UI_HEIGHT: i32 = 10;
-
 fn main() -> BError {
+    let args: Vec<String> = std::env::args().collect();
+    let seed = if args.len() == 2 {
+        u64::from_str_radix(&args[1], 16).unwrap_or_else(|_| {
+            eprintln!("usage: {} [SEED]", args[0]);
+            if args[1] == "--help" {
+                std::process::exit(0)
+            } else {
+                std::process::exit(1)
+            }
+        })
+    } else {
+        RandomNumberGenerator::new().rand()
+    };
+    eprintln!("SEED: {seed:016x}");
+
     let bterm = BTermBuilder::simple(CONSOLE_WIDTH, CONSOLE_HEIGHT)?
         .with_title("Roguelike")
         .with_tile_dimensions(16, 16)
         .build()?;
 
-    let map = Map::new(
-        CONSOLE_WIDTH as usize,
-        (CONSOLE_HEIGHT - UI_HEIGHT) as usize,
-    );
-    let mut gs = State::new(map);
-    let mut rng = RandomNumberGenerator::new();
+    let rng = RandomNumberGenerator::seeded(seed);
+    let mut gs = State::new(rng);
 
     gs.player = gs.world.spawn((
         Player,
@@ -296,9 +315,9 @@ fn main() -> BError {
     ));
 
     for room in &gs.map.rooms[1..] {
-        let x = rng.range(room.x1 + 1, room.x2);
-        let y = rng.range(room.y1 + 1, room.y2);
-        monster::spawn(&mut gs.world, x, y);
+        let x = gs.rng.range(room.x1 + 1, room.x2);
+        let y = gs.rng.range(room.y1 + 1, room.y2);
+        monster::spawn(&mut gs.world, x, y, &mut gs.rng);
     }
 
     main_loop(bterm, gs)
