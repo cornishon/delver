@@ -37,7 +37,7 @@ pub fn spawn(world: &mut World, x: i32, y: i32) {
     ));
 }
 
-pub fn apply_ai(gs: &mut State, _ctx: &mut BTerm) {
+pub fn apply_ai(gs: &mut State) {
     let player_pos = *gs.world.query_one_mut::<&Position>(gs.player).unwrap();
 
     let mut attackers = Vec::new();

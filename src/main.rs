@@ -68,6 +68,7 @@ pub enum Phase {
     AwaitingInput,
     PlayerTurn,
     MonsterTurn,
+    Rendering,
 }
 
 struct State {
@@ -81,45 +82,50 @@ struct State {
 
 impl GameState for State {
     fn tick(&mut self, ctx: &mut BTerm) {
-        match self.phase {
-            Phase::Startup => {
-                self.compute_visibility();
-                self.update_map();
-                self.render(ctx);
-                self.msg_log.push("Welcome to the game.".into());
-                self.draw_ui(ctx);
-                self.phase = Phase::AwaitingInput;
-            }
-            Phase::AwaitingInput => {
-                if self.player_input(ctx) {
-                    self.phase = Phase::PlayerTurn;
-                } else if ctx.key == Some(VirtualKeyCode::M) {
-                    for (idx, tile) in self.map.tiles.iter().enumerate() {
-                        let d = self.dm.map[idx];
-                        if *tile == TileType::Floor && d > 0.5 && d < 10.0 {
-                            let mp = self.map.to_pos(idx);
-                            ctx.print(mp.x, mp.y, d);
+        loop {
+            match self.phase {
+                Phase::Startup => {
+                    self.compute_visibility();
+                    self.update_map();
+                    self.msg_log.push("Welcome to the game.".into());
+                    self.phase = Phase::Rendering;
+                }
+                Phase::AwaitingInput => {
+                    if self.player_input(ctx) {
+                        self.phase = Phase::PlayerTurn;
+                    } else if ctx.key == Some(VirtualKeyCode::M) {
+                        for (idx, tile) in self.map.tiles.iter().enumerate() {
+                            let d = self.dm.map[idx];
+                            if *tile == TileType::Floor && d > 0.5 && d < 10.0 {
+                                let mp = self.map.to_pos(idx);
+                                ctx.print(mp.x, mp.y, d);
+                            }
                         }
+                    } else {
+                        break;
                     }
                 }
-            }
-            Phase::PlayerTurn => {
-                self.compute_visibility();
-                self.compute_dijkstra_map();
-                combat::run(self);
-                self.update_map();
-                self.phase = Phase::MonsterTurn;
-            }
-            Phase::MonsterTurn => {
-                self.compute_visibility();
-                self.compute_dijkstra_map();
-                monster::apply_ai(self, ctx);
-                combat::run(self);
-                self.update_map();
-                self.phase = Phase::AwaitingInput;
-
-                self.render(ctx);
-                self.draw_ui(ctx);
+                Phase::PlayerTurn => {
+                    self.compute_visibility();
+                    self.compute_dijkstra_map();
+                    combat::run(self);
+                    self.update_map();
+                    self.phase = Phase::MonsterTurn;
+                }
+                Phase::MonsterTurn => {
+                    self.compute_visibility();
+                    self.compute_dijkstra_map();
+                    monster::apply_ai(self);
+                    combat::run(self);
+                    self.update_map();
+                    self.phase = Phase::Rendering;
+                }
+                Phase::Rendering => {
+                    self.render(ctx);
+                    self.draw_ui(ctx);
+                    self.phase = Phase::AwaitingInput;
+                    break;
+                }
             }
         }
     }
