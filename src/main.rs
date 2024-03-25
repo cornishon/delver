@@ -75,7 +75,7 @@ struct State {
     map: Map,
     dm: DijkstraMap,
     phase: Phase,
-    player: hecs::Entity,
+    player: Entity,
     msg_log: Vec<String>,
 }
 
@@ -87,7 +87,7 @@ impl GameState for State {
                 self.update_map();
                 self.render(ctx);
                 self.msg_log.push("Welcome to the game.".into());
-                ui::draw_ui(self, ctx);
+                self.draw_ui(ctx);
                 self.phase = Phase::AwaitingInput;
             }
             Phase::AwaitingInput => {
@@ -119,7 +119,7 @@ impl GameState for State {
                 self.phase = Phase::AwaitingInput;
 
                 self.render(ctx);
-                ui::draw_ui(self, ctx);
+                self.draw_ui(ctx);
             }
         }
     }
@@ -132,7 +132,7 @@ impl State {
             map,
             world: Default::default(),
             phase: Default::default(),
-            player: hecs::Entity::DANGLING,
+            player: Entity::DANGLING,
             msg_log: Default::default(),
         }
     }
