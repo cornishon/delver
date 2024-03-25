@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::combat::{CombatStats, Percentage, WantsToMelee};
+use crate::combat::{CombatStats, WantsToMelee};
 use crate::map::{Map, TileType};
 use crate::position::Position;
 use bracket_lib::pathfinding::Algorithm2D;
@@ -11,6 +11,7 @@ mod combat;
 mod map;
 mod monster;
 mod position;
+mod spawn;
 mod ui;
 
 const CONSOLE_WIDTH: i32 = 60;
@@ -293,31 +294,14 @@ fn main() -> BError {
     let rng = RandomNumberGenerator::seeded(seed);
     let mut gs = State::new(rng);
 
-    gs.player = gs.world.spawn((
-        Player,
+    gs.player = spawn::player(
+        &mut gs.world,
+        &mut gs.rng,
         Position::try_from(&gs.map.rooms[0].center()).unwrap(),
-        Name::new("Player"),
-        CombatStats {
-            max_hp: 30,
-            hp: 30,
-            defense: Percentage::new(0.2),
-            power: 5,
-        },
-        Renderable {
-            glyph: to_cp437('@'),
-            colors: ColorPair {
-                fg: RGBA::named(YELLOW),
-                bg: RGBA::named(BLACK),
-            },
-        },
-        ViewShed::new(6),
-        // BlocksTile,
-    ));
+    );
 
     for room in &gs.map.rooms[1..] {
-        let x = gs.rng.range(room.x1 + 1, room.x2);
-        let y = gs.rng.range(room.y1 + 1, room.y2);
-        monster::spawn(&mut gs.world, x, y, &mut gs.rng);
+        spawn::fill_room(&mut gs.world, &mut gs.rng, *room);
     }
 
     main_loop(bterm, gs)
