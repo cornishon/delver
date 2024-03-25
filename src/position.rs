@@ -29,7 +29,11 @@ impl Position {
 impl ops::Add<Point> for Position {
     type Output = Position;
     fn add(self, d: Point) -> Self::Output {
-        (Point::from(self) + d).try_into().unwrap()
+        let np = Point::from(self) + d;
+        Position {
+            x: np.x.try_into().unwrap_or_default(),
+            y: np.y.try_into().unwrap_or_default(),
+        }
     }
 }
 impl From<&Position> for (usize, usize) {

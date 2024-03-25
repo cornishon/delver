@@ -64,8 +64,8 @@ impl Map {
         for _ in 0..MAX_ROOMS {
             let w = rng.range(MIN_SIZE, MAX_SIZE);
             let h = rng.range(MIN_SIZE, MAX_SIZE);
-            let x = rng.roll_dice(1, map.width as i32 - w - 1) - 1;
-            let y = rng.roll_dice(1, map.height as i32 - h - 1) - 1;
+            let x = rng.roll_dice(1, map.width as i32 - w - 2);
+            let y = rng.roll_dice(1, map.height as i32 - h - 2);
 
             let new_room = Rect::with_size(x, y, w, h);
             if !map.rooms.iter().any(|room| room.intersect(&new_room)) {

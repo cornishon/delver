@@ -1,12 +1,11 @@
 use std::collections::HashSet;
 
 use crate::combat::{CombatStats, Percentage, WantsToMelee};
-use crate::map::Map;
+use crate::map::{Map, TileType};
 use crate::position::Position;
 use bracket_lib::pathfinding::Algorithm2D;
 use bracket_lib::prelude::*;
 use hecs::{Entity, World};
-use map::TileType;
 
 mod combat;
 mod map;
