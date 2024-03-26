@@ -78,14 +78,43 @@ pub enum Phase {
 
 #[derive(Debug, Clone)]
 pub enum Animation {
-    MeleeDmg { pos: Position, dmg: i32 },
+    MeleeDmg {
+        src_pos: Position,
+        dst_pos: Position,
+        dmg: i32,
+        duration: i8,
+    },
 }
 
 impl Animation {
-    fn display(&mut self, ctx: &mut BTerm) {
+    pub fn melee(src_pos: Position, dst_pos: Position, dmg: i32) -> Self {
+        Self::MeleeDmg {
+            src_pos,
+            dst_pos,
+            dmg,
+            duration: 8,
+        }
+    }
+    /// Advance the animation and return if it finished
+    fn advance(&mut self, ctx: &mut BTerm) -> bool {
         match self {
-            Self::MeleeDmg { pos, dmg } => {
-                ctx.print_color(pos.x, pos.y, WHITE, BLACK, dmg);
+            Self::MeleeDmg {
+                src_pos,
+                dst_pos,
+                dmg,
+                duration,
+            } => {
+                // blink the attacker on the first frame
+                if *duration == 8 {
+                    ctx.print_color(src_pos.x, src_pos.y, WHITE, BLACK, ' ');
+                }
+                // display the damage for 6 frames
+                if *duration > 2 {
+                    ctx.print_color(dst_pos.x, dst_pos.y, WHITE, BLACK, dmg);
+                }
+                *duration -= 1;
+                // finish when 8 frames passed
+                *duration < 0
             }
         }
     }
@@ -101,7 +130,6 @@ struct State {
     msg_log: Vec<String>,
     animation_queue: VecDeque<Animation>,
     current_animation: Option<Animation>,
-    counter: u64,
 }
 
 impl GameState for State {
@@ -145,23 +173,22 @@ impl GameState for State {
                     self.phase = Phase::Rendering;
                 }
                 Phase::Rendering => {
-                    self.counter = self.counter.wrapping_add(1);
-                    if self.counter % 4 == 0 {
+                    if self.current_animation.is_none() {
                         self.current_animation = self.animation_queue.pop_front();
                     }
                     if let Some(anim) = &mut self.current_animation {
                         ctx.set_active_console(1);
                         ctx.cls();
-                        anim.display(ctx);
-                        break;
-                    }
-                    if self.animation_queue.is_empty() {
+                        let finished = anim.advance(ctx);
+                        if finished {
+                            self.current_animation = None;
+                        }
+                    } else {
                         ctx.set_active_console(1);
                         ctx.cls();
                         self.render(ctx);
                         self.draw_ui(ctx);
                         self.phase = Phase::AwaitingInput;
-                        break;
                     }
                     break;
                 }
@@ -188,7 +215,6 @@ impl State {
             msg_log: Default::default(),
             animation_queue: Default::default(),
             current_animation: None,
-            counter: 0,
         }
     }
 

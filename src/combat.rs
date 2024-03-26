@@ -47,9 +47,9 @@ impl SufferDamage {
 pub fn melee_combat(gs: &mut State) {
     let mut to_damage = Vec::new();
     let mut attackers = Vec::new();
-    for (e, (wants_melee, name, stats)) in gs
+    for (e, (attacker_pos, wants_melee, name, stats)) in gs
         .world
-        .query::<(&WantsToMelee, &Name, &CombatStats)>()
+        .query::<(&Position, &WantsToMelee, &Name, &CombatStats)>()
         .iter()
     {
         attackers.push(e);
@@ -80,14 +80,14 @@ pub fn melee_combat(gs: &mut State) {
                     damage,
                     damage - raw_damage as i32
                 ));
-                to_damage.push((*target_position, wants_melee.target, damage));
+                to_damage.push((*attacker_pos, *target_position, wants_melee.target, damage));
             }
         }
     }
-    for (pos, target, dmg) in to_damage {
+    for (src_pos, dst_pos, target, dmg) in to_damage {
         SufferDamage::add_damage(&mut gs.world, target, dmg);
         gs.animation_queue
-            .push_back(Animation::MeleeDmg { pos, dmg });
+            .push_back(Animation::melee(src_pos, dst_pos, dmg));
     }
     for e in attackers {
         if let Err(err) = gs.world.remove_one::<WantsToMelee>(e) {
