@@ -1,7 +1,7 @@
 use bracket_terminal::console;
 use hecs::{Entity, World};
 
-use crate::{Name, State};
+use crate::{position::Position, Animation, Name, State};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Percentage(f32);
@@ -58,16 +58,16 @@ pub fn melee_combat(gs: &mut State) {
         }
         let Ok(mut target) = gs
             .world
-            .query_one::<(&CombatStats, &Name)>(wants_melee.target)
+            .query_one::<(&Position, &CombatStats, &Name)>(wants_melee.target)
         else {
             continue;
         };
-        if let Some((target_stats, target_name)) = target.get() {
+        if let Some((target_position, target_stats, target_name)) = target.get() {
             if target_stats.hp <= 0 {
                 continue;
             }
-            let damage = stats.power as f32 * (1.0 - target_stats.defense.0);
-            let (mut damage, fractional) = (damage as i32, damage.fract());
+            let raw_damage = stats.power as f32 * (1.0 - target_stats.defense.0);
+            let (mut damage, fractional) = (raw_damage as i32, raw_damage.fract());
             if gs.rng.range(0.0, 1.0) > fractional {
                 damage += 1;
             }
@@ -75,14 +75,19 @@ pub fn melee_combat(gs: &mut State) {
                 gs.msg_log
                     .push(format!("{name} is unable to damage {target_name}"));
             } else {
-                gs.msg_log
-                    .push(format!("{name} hits {target_name} for {}", damage));
-                to_damage.push((wants_melee.target, damage));
+                gs.msg_log.push(format!(
+                    "{name} hits {target_name} for {} [blocked {}]",
+                    damage,
+                    damage - raw_damage as i32
+                ));
+                to_damage.push((*target_position, wants_melee.target, damage));
             }
         }
     }
-    for (target, damage) in to_damage {
-        SufferDamage::add_damage(&mut gs.world, target, damage);
+    for (pos, target, dmg) in to_damage {
+        SufferDamage::add_damage(&mut gs.world, target, dmg);
+        gs.animation_queue
+            .push_back(Animation::MeleeDmg { pos, dmg });
     }
     for e in attackers {
         if let Err(err) = gs.world.remove_one::<WantsToMelee>(e) {

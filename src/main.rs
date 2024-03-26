@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 
 use crate::combat::{CombatStats, WantsToMelee};
 use crate::map::{Map, TileType};
@@ -76,6 +76,21 @@ pub enum Phase {
     Rendering,
 }
 
+#[derive(Debug, Clone)]
+pub enum Animation {
+    MeleeDmg { pos: Position, dmg: i32 },
+}
+
+impl Animation {
+    fn display(&mut self, ctx: &mut BTerm) {
+        match self {
+            Self::MeleeDmg { pos, dmg } => {
+                ctx.print_color(pos.x, pos.y, WHITE, BLACK, dmg);
+            }
+        }
+    }
+}
+
 struct State {
     world: World,
     map: Map,
@@ -84,6 +99,9 @@ struct State {
     phase: Phase,
     player: Entity,
     msg_log: Vec<String>,
+    animation_queue: VecDeque<Animation>,
+    current_animation: Option<Animation>,
+    counter: u64,
 }
 
 impl GameState for State {
@@ -127,9 +145,24 @@ impl GameState for State {
                     self.phase = Phase::Rendering;
                 }
                 Phase::Rendering => {
-                    self.render(ctx);
-                    self.draw_ui(ctx);
-                    self.phase = Phase::AwaitingInput;
+                    self.counter = self.counter.wrapping_add(1);
+                    if self.counter % 4 == 0 {
+                        self.current_animation = self.animation_queue.pop_front();
+                    }
+                    if let Some(anim) = &mut self.current_animation {
+                        ctx.set_active_console(1);
+                        ctx.cls();
+                        anim.display(ctx);
+                        break;
+                    }
+                    if self.animation_queue.is_empty() {
+                        ctx.set_active_console(1);
+                        ctx.cls();
+                        self.render(ctx);
+                        self.draw_ui(ctx);
+                        self.phase = Phase::AwaitingInput;
+                        break;
+                    }
                     break;
                 }
             }
@@ -153,6 +186,9 @@ impl State {
             phase: Default::default(),
             player: Entity::DANGLING,
             msg_log: Default::default(),
+            animation_queue: Default::default(),
+            current_animation: None,
+            counter: 0,
         }
     }
 
@@ -289,6 +325,7 @@ fn main() -> BError {
     let bterm = BTermBuilder::simple(CONSOLE_WIDTH, CONSOLE_HEIGHT)?
         .with_title("Roguelike")
         .with_tile_dimensions(16, 16)
+        .with_sparse_console(CONSOLE_WIDTH, CONSOLE_HEIGHT, "terminal8x8.png")
         .build()?;
 
     let rng = RandomNumberGenerator::seeded(seed);
