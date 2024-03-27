@@ -1,1 +1,3 @@
 /target
+wasm/roguelike_game.js
+wasm/roguelike_game_bg.wasm

@@ -1,12 +1,22 @@
 [package]
+
 name = "roguelike_game"
 version = "0.1.0"
 edition = "2021"
+resolver = "2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bracket-lib = "0.8.7"
-bracket-terminal = { version = "0.8.7", features = ["low_cpu"] }
 grid = "0.13.0"
 hecs = "0.10.4"
+
+# https://github.com/amethyst/bracket-lib/issues/301
+[dependencies.bracket-lib]
+git = "https://github.com/amethyst/bracket-lib"
+rev = "851f6f08675444fb6fa088b9e67bee9fd75554c6"
+[dependencies.bracket-terminal]
+git = "https://github.com/amethyst/bracket-lib"
+rev = "851f6f08675444fb6fa088b9e67bee9fd75554c6"
+features = ["low_cpu"]
+

@@ -1,4 +1,4 @@
-use bracket_terminal::console;
+use bracket_lib::terminal::console;
 use hecs::{Entity, World};
 
 use crate::{position::Position, Animation, Name, State};
