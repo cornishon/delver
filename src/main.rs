@@ -74,49 +74,71 @@ pub enum Phase {
     PlayerTurn,
     MonsterTurn,
     Rendering,
+    Animating,
 }
 
 #[derive(Debug, Clone)]
-pub enum Animation {
+pub enum AnimationKind {
+    Miss {
+        src_pos: Position,
+        dst_pos: Position,
+    },
     MeleeDmg {
         src_pos: Position,
         dst_pos: Position,
         dmg: i32,
-        duration: i8,
     },
 }
 
+#[derive(Debug, Clone)]
+pub struct Animation {
+    duration: i8,
+    kind: AnimationKind,
+}
+
 impl Animation {
-    pub fn melee(src_pos: Position, dst_pos: Position, dmg: i32) -> Self {
-        Self::MeleeDmg {
-            src_pos,
-            dst_pos,
-            dmg,
+    pub fn miss(src_pos: Position, dst_pos: Position) -> Self {
+        Self {
+            kind: AnimationKind::Miss { src_pos, dst_pos },
             duration: 8,
         }
     }
-    /// Advance the animation and return if it finished
-    fn advance(&mut self, ctx: &mut BTerm) -> bool {
-        match self {
-            Self::MeleeDmg {
+    pub fn melee(src_pos: Position, dst_pos: Position, dmg: i32) -> Self {
+        Self {
+            kind: AnimationKind::MeleeDmg {
                 src_pos,
                 dst_pos,
                 dmg,
-                duration,
-            } => {
-                // blink the attacker on the first frame
-                if *duration == 8 {
+            },
+            duration: 8,
+        }
+    }
+    /// Advance the animation and indicate if it is finished
+    fn advance(&mut self, ctx: &mut BTerm) -> bool {
+        match self.kind {
+            AnimationKind::Miss { src_pos, dst_pos } => {
+                if self.duration > 6 {
                     ctx.print_color(src_pos.x, src_pos.y, WHITE, BLACK, ' ');
                 }
-                // display the damage for 6 frames
-                if *duration > 2 {
+                if self.duration > 3 {
+                    ctx.print_color(dst_pos.x, dst_pos.y, WHITE, BLACK, '/');
+                }
+            }
+            AnimationKind::MeleeDmg {
+                src_pos,
+                dst_pos,
+                dmg,
+            } => {
+                if self.duration > 6 {
+                    ctx.print_color(src_pos.x, src_pos.y, WHITE, BLACK, ' ');
+                }
+                if self.duration > 3 {
                     ctx.print_color(dst_pos.x, dst_pos.y, WHITE, BLACK, dmg);
                 }
-                *duration -= 1;
-                // finish when 8 frames passed
-                *duration < 0
             }
         }
+        self.duration -= 1;
+        self.duration < 0
     }
 }
 
@@ -173,21 +195,22 @@ impl GameState for State {
                     self.phase = Phase::Rendering;
                 }
                 Phase::Rendering => {
+                    self.render(ctx);
+                    self.draw_ui(ctx);
+                    self.phase = Phase::Animating;
+                }
+                Phase::Animating => {
+                    ctx.set_active_console(1);
+                    ctx.cls();
                     if self.current_animation.is_none() {
                         self.current_animation = self.animation_queue.pop_front();
                     }
                     if let Some(anim) = &mut self.current_animation {
-                        ctx.set_active_console(1);
-                        ctx.cls();
                         let finished = anim.advance(ctx);
                         if finished {
                             self.current_animation = None;
                         }
                     } else {
-                        ctx.set_active_console(1);
-                        ctx.cls();
-                        self.render(ctx);
-                        self.draw_ui(ctx);
                         self.phase = Phase::AwaitingInput;
                     }
                     break;
@@ -348,10 +371,12 @@ fn main() -> BError {
     };
     eprintln!("SEED: {seed:016x}");
 
-    let bterm = BTermBuilder::simple(CONSOLE_WIDTH, CONSOLE_HEIGHT)?
+    let bterm = BTermBuilder::new()
         .with_title("Roguelike")
-        .with_tile_dimensions(16, 16)
+        .with_font("terminal8x8.png", 8, 8)
+        .with_simple_console(CONSOLE_WIDTH, CONSOLE_HEIGHT, "terminal8x8.png")
         .with_sparse_console(CONSOLE_WIDTH, CONSOLE_HEIGHT, "terminal8x8.png")
+        .with_tile_dimensions(16, 16)
         .build()?;
 
     let rng = RandomNumberGenerator::seeded(seed);

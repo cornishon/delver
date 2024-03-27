@@ -7,6 +7,7 @@ impl super::State {
         const PADDING: i32 = 1;
 
         let mut y = CONSOLE_HEIGHT - UI_HEIGHT;
+        ctx.set_active_console(0);
         ctx.draw_box(0, y, CONSOLE_WIDTH - 1, UI_HEIGHT - 1, WHITE, BLACK);
 
         if let Ok(&CombatStats { max_hp, hp, .. }) =

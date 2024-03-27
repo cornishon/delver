@@ -15,6 +15,7 @@ impl Percentage {
 pub struct CombatStats {
     pub max_hp: i32,
     pub hp: i32,
+    pub accuracy: Percentage,
     pub defense: Percentage,
     pub power: i32,
 }
@@ -62,7 +63,7 @@ pub fn melee_combat(gs: &mut State) {
         else {
             continue;
         };
-        if let Some((target_position, target_stats, target_name)) = target.get() {
+        if let Some((target_pos, target_stats, target_name)) = target.get() {
             if target_stats.hp <= 0 {
                 continue;
             }
@@ -71,23 +72,24 @@ pub fn melee_combat(gs: &mut State) {
             if gs.rng.range(0.0, 1.0) > fractional {
                 damage += 1;
             }
-            if damage == 0 {
-                gs.msg_log
-                    .push(format!("{name} is unable to damage {target_name}"));
+            if stats.accuracy.0 < gs.rng.range(0.0, 1.0) {
+                gs.msg_log.push(format!("{name} is misses {target_name}"));
+                gs.animation_queue
+                    .push_back(Animation::miss(*attacker_pos, *target_pos));
             } else {
                 gs.msg_log.push(format!(
                     "{name} hits {target_name} for {} [blocked {}]",
                     damage,
                     damage - raw_damage as i32
                 ));
-                to_damage.push((*attacker_pos, *target_position, wants_melee.target, damage));
+                gs.animation_queue
+                    .push_back(Animation::melee(*attacker_pos, *target_pos, damage));
+                to_damage.push((wants_melee.target, damage));
             }
         }
     }
-    for (src_pos, dst_pos, target, dmg) in to_damage {
+    for (target, dmg) in to_damage {
         SufferDamage::add_damage(&mut gs.world, target, dmg);
-        gs.animation_queue
-            .push_back(Animation::melee(src_pos, dst_pos, dmg));
     }
     for e in attackers {
         if let Err(err) = gs.world.remove_one::<WantsToMelee>(e) {

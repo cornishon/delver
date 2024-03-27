@@ -16,6 +16,7 @@ pub fn player(world: &mut World, _rng: &mut RandomNumberGenerator, position: Pos
         CombatStats {
             max_hp: 100,
             hp: 100,
+            accuracy: Percentage::new(0.7),
             defense: Percentage::new(0.2),
             power: 5,
         },
@@ -43,6 +44,7 @@ pub fn monster(world: &mut World, rng: &mut RandomNumberGenerator, position: Pos
         CombatStats {
             max_hp: 16,
             hp: 16,
+            accuracy: Percentage::new(0.5),
             defense: Percentage::new(0.1),
             power: 4,
         },
