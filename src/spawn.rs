@@ -14,8 +14,8 @@ pub fn player(world: &mut World, _rng: &mut RandomNumberGenerator, position: Pos
         position,
         Name::new("Player"),
         CombatStats {
-            max_hp: 30,
-            hp: 30,
+            max_hp: 100,
+            hp: 100,
             defense: Percentage::new(0.2),
             power: 5,
         },
