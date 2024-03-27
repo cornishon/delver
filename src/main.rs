@@ -167,15 +167,18 @@ impl GameState for State {
                 Phase::AwaitingInput => {
                     if self.player_input(ctx) {
                         self.phase = Phase::PlayerTurn;
-                    } else if ctx.key == Some(VirtualKeyCode::M) {
-                        for (idx, tile) in self.map.tiles.iter().enumerate() {
-                            let d = self.dm.map[idx];
-                            if *tile == TileType::Floor && d > 0.5 && d < 10.0 {
-                                let mp = self.map.to_pos(idx);
-                                ctx.print(mp.x, mp.y, d);
+                    } else {
+                        ctx.set_active_console(1);
+                        ctx.cls();
+                        if ctx.control {
+                            for (idx, tile) in self.map.tiles.iter().enumerate() {
+                                let d = self.dm.map[idx];
+                                if *tile == TileType::Floor && d > 0.5 && d < 10.0 {
+                                    let mp = self.map.to_pos(idx);
+                                    ctx.print(mp.x, mp.y, d);
+                                }
                             }
                         }
-                    } else {
                         break;
                     }
                 }
